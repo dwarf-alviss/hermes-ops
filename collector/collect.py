@@ -77,14 +77,17 @@ def host_metrics(disks: list[str]) -> dict:
         except OSError:
             continue
 
-    # топ процессов по CPU
+    # топ процессов по CPU (исключая самих себя)
     procs = []
-    ps = sh("ps -eo comm=,pcpu=,rss= --sort=-pcpu 2>/dev/null | head -8")
+    skip_pids = {str(os.getpid()), str(os.getppid())}
+    ps = sh("ps -eo pid=,comm=,pcpu=,rss= --sort=-pcpu 2>/dev/null | head -14")
     for line in ps.splitlines():
-        parts = line.split(None, 2)
-        if len(parts) < 3:
+        parts = line.split(None, 3)
+        if len(parts) < 4:
             continue
-        name, cpu, rss = parts[0], parts[1], parts[2]
+        pid, name, cpu, rss = parts
+        if pid in skip_pids or name in ('ps', 'sh', 'bash', 'systemd'):
+            continue
         try:
             cpu_f = float(cpu)
             rss_mb = int(rss) / 1024

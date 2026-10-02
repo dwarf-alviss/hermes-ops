@@ -5,7 +5,7 @@ import type { StatusPayload } from '../lib/types'
 function statusTone(s: string | null): 'ok' | 'bad' | 'warn' | 'dim' {
   if (!s) return 'dim'
   const v = s.toLowerCase()
-  if (v === 'ok' || v === 'success' || v === 'done') return 'ok'
+  if (v === 'ok' || v === 'success' || v === 'done' || v === 'completed') return 'ok'
   if (v.includes('run')) return 'warn'
   if (v.includes('fail') || v.includes('error') || v.includes('timeout')) return 'bad'
   return 'dim'
