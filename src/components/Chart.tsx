@@ -57,9 +57,14 @@ export function LineChart({
       return { x: i * step, y: padTop + (1 - Math.max(0, Math.min(1, frac))) * innerH, t: d.t, v: d.v }
     })
     const line = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
+    const spread = hiRaw - loRaw
     return {
       path: line,
-      area: pts.length ? `${line} L${pts[pts.length - 1].x.toFixed(1)},${H - padBottom} L0,${H - padBottom} Z` : '',
+      // почти плоская линия (диск, swap) не заливается — иначе график выглядит как плашка
+      area:
+        pts.length && spread > (max ?? 100) * 0.03
+          ? `${line} L${pts[pts.length - 1].x.toFixed(1)},${H - padBottom} L0,${H - padBottom} Z`
+          : '',
       points: pts,
       hi: hiRaw,
       lo: loRaw,

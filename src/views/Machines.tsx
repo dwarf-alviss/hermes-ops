@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { LineChart } from '../components/Chart'
 import { Icon } from '../components/Icon'
 import { Bar, CardHead, Pill, StatusPill, toneFor } from '../components/primitives'
@@ -18,6 +18,12 @@ export default function Machines({ data }: { data: StatusPayload }) {
   const since = Math.floor(Date.now() / 1000) - sec
   const allPoints = Object.values(data.history).flatMap((h) => h.map((p) => p.t))
   const histSpanMin = allPoints.length > 1 ? Math.round((Math.max(...allPoints) - Math.min(...allPoints)) / 60) : 0
+
+  // если истории меньше, чем выбранный период — подтягиваем период к реальности
+  useEffect(() => {
+    if (histSpanMin > 0 && histSpanMin < 120 && range === '24h') setRange('1h')
+    else if (histSpanMin > 0 && histSpanMin < 90 && range === '6h') setRange('1h')
+  }, [histSpanMin, range])
 
   if (!hosts.length) {
     return <div className="empty-box">Коллектор ещё не отдал данные по машинам</div>
@@ -117,7 +123,7 @@ export default function Machines({ data }: { data: StatusPayload }) {
               </div>
               <div>
                 <div className="label" style={{ marginBottom: 4 }}>
-                  диск
+                  диск {h.disks[0]?.mount ?? ''}
                 </div>
                 <LineChart data={hist.map((p) => ({ t: p.t, v: p.disk_pct }))} color="#38bdf8" max={100} height={92} unit="%" />
               </div>

@@ -72,6 +72,23 @@ def update_history(name: str, host: dict, hist: dict) -> None:
     del series[:-MAX_POINTS]
 
 
+STATE_RU = {
+    'connected': 'подключено',
+    'disconnected': 'отключено',
+    'running': 'работает',
+    'down': 'остановлен',
+    'up': 'работает',
+    'ok': 'ок',
+    'completed': 'успех',
+    'success': 'успех',
+    'failed': 'сбой',
+}
+
+
+def state_ru(value: str | None) -> str:
+    return STATE_RU.get((value or '').lower(), value or '—')
+
+
 def build_notes(hosts: dict, hermes: dict) -> list[str]:
     notes: list[str] = []
     for key, h in hosts.items():
@@ -90,11 +107,11 @@ def build_notes(hosts: dict, hermes: dict) -> list[str]:
             notes.append(f'Hermes ({key}): gateway не запущен.')
         for plat in n['gateway']['platforms']:
             if plat['state'] not in ('connected',):
-                notes.append(f'Hermes ({key}): платформа {plat["name"]} — {plat["state"]}.')
+                notes.append(f'Hermes ({key}): платформа {plat["name"]} — {state_ru(plat["state"])}.')
         for j in n['cron']:
             st = (j.get('last_status') or '').lower()
             if st and st not in ('ok', 'success', 'completed'):
-                notes.append(f'Джоб «{j["name"]}» ({key}): последний статус {j["last_status"]}.')
+                notes.append(f'Джоб «{j["name"]}» ({key}): последний статус {state_ru(j["last_status"])}.')
     return notes[:12]
 
 

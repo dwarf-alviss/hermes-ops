@@ -16,6 +16,8 @@ export function runTone(s: string | null): 'ok' | 'bad' | 'warn' | 'dim' {
 export default function HermesView({ data }: { data: StatusPayload }) {
   const nodes = Object.entries(data.hermes)
   const [expanded, setExpanded] = useState<string | null>(nodes[0]?.[0] ?? null)
+  const nodeLabel = (key: string) => (data.hosts[key]?.name ?? key).split(' · ')[0]
+  const cap = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s)
   if (!nodes.length) return <div className="empty-box">Коллектор ещё не отдал данные по Hermes</div>
 
   return (
@@ -32,7 +34,7 @@ export default function HermesView({ data }: { data: StatusPayload }) {
             >
               <Icon name={open ? 'chevronDown' : 'chevronRight'} size={13} style={{ color: 'var(--text-4)' }} />
               <Icon name="bot" size={14} style={{ color: 'var(--text-3)' }} />
-              <span className="title">{key}</span>
+              <span className="title">{nodeLabel(key)}</span>
               <StatusPill ok={n.gateway.running} label={stateRu(n.gateway.state) || (n.gateway.running ? 'работает' : 'остановлен')} />
               <span className="right">
                 <Pill mono>
@@ -66,7 +68,7 @@ export default function HermesView({ data }: { data: StatusPayload }) {
                       {n.gateway.platforms.map((p) => (
                         <Pill key={p.name} tone={p.state === 'connected' ? 'ok' : 'bad'}>
                           <i className="dot" />
-                          {p.name}: {stateRu(p.state)}
+                          {cap(p.name)}: {stateRu(p.state)}
                         </Pill>
                       ))}
                     </div>
