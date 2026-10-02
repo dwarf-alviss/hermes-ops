@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { checkCredentials, fetchAndDecrypt, LOGIN } from './lib/api'
 import { loadProjects, saveProjects } from './lib/store'
+import { ctrl, endSession, startSession } from './lib/ctrl'
 import { plural } from './lib/format'
 import type { Project, StatusPayload } from './lib/types'
 import Login from './views/Login'
@@ -8,23 +9,27 @@ import Overview from './views/Overview'
 import Machines from './views/Machines'
 import HermesView from './views/HermesView'
 import Projects from './views/Projects'
+import Admin from './views/Admin'
 import Settings from './views/Settings'
 import { CommandPalette, type PaletteAction } from './components/CommandPalette'
 import { Icon, type IconName } from './components/Icon'
 import { Pill, Skeleton } from './components/primitives'
 import { ToastProvider, useHotkey, useTicker } from './components/hooks'
 
-type Tab = 'overview' | 'machines' | 'hermes' | 'projects' | 'settings'
+type Tab = 'overview' | 'machines' | 'hermes' | 'projects' | 'admin' | 'settings'
 
 const NAV: { id: Tab; label: string; icon: IconName; group: string; key?: string }[] = [
   { id: 'overview', label: 'Обзор', icon: 'overview', group: 'Мониторинг' },
   { id: 'machines', label: 'Машины', icon: 'server', group: 'Мониторинг', key: 'm' },
   { id: 'hermes', label: 'Hermes', icon: 'bot', group: 'Мониторинг', key: 'h' },
   { id: 'projects', label: 'Проекты', icon: 'folder', group: 'Работа', key: 'p' },
+  { id: 'admin', label: 'Админка', icon: 'power', group: 'Система', key: 'a' },
   { id: 'settings', label: 'Настройки', icon: 'settings', group: 'Система' },
 ]
 
 const PW_KEY = 'hermes-ops.pw'
+const PROJ_LOCAL_AT = 'hermes-ops.projects.local_at'
+const PROJ_REV = 'hermes-ops.projects.rev'
 const REFRESH_MS = 30_000
 
 function Shell() {
@@ -35,7 +40,10 @@ function Shell() {
   const [err, setErr] = useState<string | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [projects, setProjects] = useState<Project[]>(() => loadProjects())
+  const [projRev, setProjRev] = useState<number>(() => Number(localStorage.getItem(PROJ_REV) || 0))
+  const [syncMsg, setSyncMsg] = useState<string | null>(null)
   const now = useTicker(1000)
+  const pushTimer = useRef<number | null>(null)
 
   useEffect(() => saveProjects(projects), [projects])
 
@@ -48,6 +56,68 @@ function Shell() {
     } finally {
       if (!silent) setBusy(false)
     }
+  }, [])
+
+  /**
+   * Синхронизация проектов: сервер (VPS) — источник правды для всех устройств,
+   * localStorage — офлайн-копия. Конфликты решаются по времени последней правки.
+   */
+  const pullProjects = useCallback(async (): Promise<string> => {
+    const local = loadProjects()
+    const localAt = localStorage.getItem(PROJ_LOCAL_AT)
+    const remote = await ctrl.projects()
+    if (remote.rev > 0 && remote.projects?.length) {
+      const remoteAt = Date.parse(remote.updated_at || '1970-01-01')
+      const localTime = localAt ? Date.parse(localAt) : 0
+      if (localTime > remoteAt) {
+        const r = await ctrl.saveProjects(remote.rev, local)
+        setProjRev(r.rev)
+        localStorage.setItem(PROJ_REV, String(r.rev))
+        localStorage.removeItem(PROJ_LOCAL_AT)
+        setSyncMsg(`локальная версия ушла на сервер (rev ${r.rev})`)
+        return 'Локальные проекты отправлены на сервер'
+      }
+      setProjects(remote.projects)
+      setProjRev(remote.rev)
+      localStorage.setItem(PROJ_REV, String(remote.rev))
+      localStorage.removeItem(PROJ_LOCAL_AT)
+      setSyncMsg(`взял версию с сервера (rev ${remote.rev})`)
+      return 'Проекты подтянуты с сервера'
+    }
+    const r = await ctrl.saveProjects(remote.rev || 0, local)
+    setProjRev(r.rev)
+    localStorage.setItem(PROJ_REV, String(r.rev))
+    setSyncMsg(`залил локальные проекты (rev ${r.rev})`)
+    return 'Локальные проекты залиты на сервер'
+  }, [])
+
+  /** Правки проектов: сразу в UI и localStorage, на сервер — с задержкой. */
+  const updateProjects = useCallback(
+    (next: Project[]) => {
+      setProjects(next)
+      localStorage.setItem(PROJ_LOCAL_AT, new Date().toISOString())
+      if (pushTimer.current) window.clearTimeout(pushTimer.current)
+      pushTimer.current = window.setTimeout(async () => {
+        try {
+          const r = await ctrl.saveProjects(projRev, next)
+          setProjRev(r.rev)
+          localStorage.setItem(PROJ_REV, String(r.rev))
+          localStorage.removeItem(PROJ_LOCAL_AT)
+          setSyncMsg(`синхронизировано (rev ${r.rev})`)
+        } catch {
+          setSyncMsg('API недоступен — проекты пока только в этом браузере')
+        }
+      }, 1500)
+    },
+    [projRev],
+  )
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      pullProjects().catch(() => setSyncMsg('API недоступен — проекты только в этом браузере'))
+    }, 600)
+    return () => window.clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -73,14 +143,19 @@ function Shell() {
 
   async function handleLogin(login: string, pw: string) {
     const payload = await checkCredentials(login, pw)
+    await startSession(pw)                       // токен API управления (в памяти вкладки)
     sessionStorage.setItem(PW_KEY, pw)
     setPassword(pw)
     setData(payload)
     setErr(null)
+    pullProjects()
+      .then((m) => setSyncMsg(m))
+      .catch(() => setSyncMsg('API недоступен — проекты только в этом браузере'))
   }
 
   function logout() {
     sessionStorage.removeItem(PW_KEY)
+    endSession()
     setPassword(null)
     setData(null)
   }
@@ -103,6 +178,15 @@ function Shell() {
         run: () => password && refresh(password),
       },
       {
+        id: 'sync-projects',
+        label: 'Синхронизировать проекты',
+        icon: 'layers',
+        run: () =>
+          pullProjects()
+            .then((m) => setSyncMsg(m))
+            .catch(() => setSyncMsg('API недоступен')),
+      },
+      {
         id: 'copy-link',
         label: 'Скопировать ссылку на дашборд',
         icon: 'copy',
@@ -118,7 +202,7 @@ function Shell() {
     ]
     return [...nav, ...rest]
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [password, refresh])
+  }, [password, refresh, pullProjects])
 
   if (password && !data) {
     return (
@@ -147,9 +231,7 @@ function Shell() {
   }
 
   if (!password || !data) {
-    return (
-      <Login onLogin={handleLogin} initialError={err} />
-    )
+    return <Login onLogin={handleLogin} initialError={err} />
   }
 
   const hosts = Object.entries(data.hosts)
@@ -239,7 +321,10 @@ function Shell() {
           {tab === 'overview' && <Overview data={data} projects={projects} onOpen={setTab} />}
           {tab === 'machines' && <Machines data={data} />}
           {tab === 'hermes' && <HermesView data={data} />}
-          {tab === 'projects' && <Projects projects={projects} setProjects={setProjects} />}
+          {tab === 'projects' && <Projects projects={projects} setProjects={updateProjects} syncMsg={syncMsg} />}
+          {tab === 'admin' && (
+            <Admin data={data} projectsCount={projects.length} onSyncProjects={pullProjects} />
+          )}
           {tab === 'settings' && (
             <Settings data={data} onLogout={logout} onRefresh={() => refresh(password)} busy={busy} />
           )}

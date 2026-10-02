@@ -43,7 +43,9 @@ export type HermesNode = {
   gateway: {
     running: boolean
     pid: number | null
+    pid_alive?: boolean
     state: string
+    unit_state?: string | null
     updated_at: string | null
     active_agents: number
     platforms: { name: string; state: string }[]

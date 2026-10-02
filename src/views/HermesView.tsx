@@ -35,7 +35,14 @@ export default function HermesView({ data }: { data: StatusPayload }) {
               <Icon name={open ? 'chevronDown' : 'chevronRight'} size={13} style={{ color: 'var(--text-4)' }} />
               <Icon name="bot" size={14} style={{ color: 'var(--text-3)' }} />
               <span className="title">{nodeLabel(key)}</span>
-              <StatusPill ok={n.gateway.running} label={stateRu(n.gateway.state) || (n.gateway.running ? 'работает' : 'остановлен')} />
+              <StatusPill
+                ok={n.gateway.running}
+                label={
+                  n.gateway.state === 'stale'
+                    ? 'файл врёт: процесса нет'
+                    : stateRu(n.gateway.state) || (n.gateway.running ? 'работает' : 'остановлен')
+                }
+              />
               <span className="right">
                 <Pill mono>
                   {n.cron.length} {plural(n.cron.length, 'джоб', 'джоба', 'джобов')}

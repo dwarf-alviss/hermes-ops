@@ -36,6 +36,8 @@ const P: Record<string, string> = {
   pin: 'M12 21v-6M8 4h8l-1 6 3 3H6l3-3z',
   download: 'M12 4v11M7 11l5 5 5-5M4 20h16',
   shield: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',
+  play: 'M7 4.5l12 7.5-12 7.5z',
+  power: 'M12 3v9M6.4 6.4a8 8 0 1 0 11.2 0',
   user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c0-4 4-6 8-6s8 2 8 6',
 }
 

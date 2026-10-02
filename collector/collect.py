@@ -30,6 +30,25 @@ def sh(cmd: str, timeout: int = 10, stdin_data: str | None = None) -> str:
         return ''
 
 
+def systemd_unit_state(unit: str) -> str | None:
+    """Состояние systemd user-юнита (active/inactive/failed/…).
+
+    Нужно, чтобы статус gateway не зависел от файла-маркера: файл врёт, юнит — нет.
+    XDG_RUNTIME_DIR подставляем явно: из cron/systemd-таймера переменной может не быть.
+    """
+    uid = os.getuid()
+    env = dict(os.environ)
+    env.setdefault('XDG_RUNTIME_DIR', f'/run/user/{uid}')
+    try:
+        r = subprocess.run(
+            ['systemctl', '--user', 'is-active', unit],
+            capture_output=True, text=True, timeout=6, env=env,
+        )
+        return (r.stdout or '').strip() or None
+    except Exception:
+        return None
+
+
 # ---------------------------------------------------------------- host metrics
 def read_meminfo() -> dict:
     out: dict[str, int] = {}
@@ -167,16 +186,39 @@ def hermes_state(home: str, heartbeat_url: str | None) -> dict:
         for v in (gw.get('platforms') or {}).values():
             if isinstance(v, dict) and v.get('updated_at'):
                 updated = v['updated_at']
-        running = gw.get('gateway_state') == 'running'
+        # файл gateway_state.json переживает падение процесса: «running» в нём ничего
+        # не доказывает, поэтому состояние подтверждаем живостью PID (kill -0).
+        pid = gw.get('pid')
+        alive = False
+        if pid:
+            try:
+                os.kill(int(pid), 0)
+                alive = True
+            except (OSError, ValueError):
+                alive = False
+        declared = gw.get('gateway_state') == 'running'
+        unit_state = systemd_unit_state('hermes-gateway.service')
+        running = bool(declared and alive)
+        if running:
+            state = 'running'
+        elif declared and not alive:
+            state = 'stale'          # процесс мёртв, state-файл врёт
+        else:
+            state = gw.get('gateway_state') or 'down'
         out['gateway'] = {
             'running': running,
-            'pid': gw.get('pid'),
-            'state': gw.get('gateway_state') or ('running' if running else 'down'),
+            'pid': pid,
+            'pid_alive': alive,
+            'state': state,
+            'unit_state': unit_state,
             'updated_at': updated,
             'active_agents': gw.get('active_agents') or 0,
             'platforms': plat,
         }
-        if not running:
+        if state == 'stale':
+            out['note'] = ('gateway: процесс не найден, а state-файл говорит «running» '
+                           f'(последняя запись {updated or "—"})')
+        elif not running:
             out['note'] = f"gateway: {gw.get('exit_reason') or 'не запущен'}"
     except Exception:
         out['note'] = 'gateway_state.json недоступен'

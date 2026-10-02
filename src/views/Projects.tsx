@@ -27,9 +27,11 @@ const PRIORITY_LABEL: Record<Project['priority'], string> = {
 export default function Projects({
   projects,
   setProjects,
+  syncMsg,
 }: {
   projects: Project[]
   setProjects: (p: Project[]) => void
+  syncMsg?: string | null
 }) {
   const toast = useToast()
   const [q, setQ] = useState('')
@@ -322,8 +324,9 @@ export default function Projects({
       </div>
 
       <div className="dim" style={{ fontSize: 11, marginTop: 12 }}>
-        Проекты лежат в localStorage браузера; порядок — тот, что ты задал перетаскиванием. Синхронизация между
-        устройствами появится с API на VPS (Фаза 2).
+        {syncMsg ? <span className="pill mono" style={{ marginRight: 8 }}>{syncMsg}</span> : null}
+        Проекты хранятся на VPS и подтягиваются на любое устройство (локальная копия — в localStorage, работает
+        офлайн). Правки уходят на сервер через полторы секунды после изменения.
       </div>
     </>
   )
