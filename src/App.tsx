@@ -122,6 +122,8 @@ function Shell() {
 
   useEffect(() => {
     if (!password) return
+    // токен API выводится из пароля: он нужен и при восстановленной сессии (reload)
+    startSession(password).catch(() => undefined)
     refresh(password).catch((e) => {
       sessionStorage.removeItem(PW_KEY)
       setPassword(null)
