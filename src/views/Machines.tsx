@@ -16,6 +16,8 @@ export default function Machines({ data }: { data: StatusPayload }) {
   const hosts = Object.entries(data.hosts)
   const sec = RANGES.find((r) => r.id === range)!.sec
   const since = Math.floor(Date.now() / 1000) - sec
+  const allPoints = Object.values(data.history).flatMap((h) => h.map((p) => p.t))
+  const histSpanMin = allPoints.length > 1 ? Math.round((Math.max(...allPoints) - Math.min(...allPoints)) / 60) : 0
 
   if (!hosts.length) {
     return <div className="empty-box">Коллектор ещё не отдал данные по машинам</div>
@@ -32,6 +34,10 @@ export default function Machines({ data }: { data: StatusPayload }) {
             </button>
           ))}
         </div>
+        <span className="spacer" />
+        <span className="dim" style={{ fontSize: 11 }}>
+          история: {histSpanMin} мин{histSpanMin < sec / 60 ? ' (собирается дальше)' : ''}
+        </span>
       </div>
 
       {hosts.map(([key, h]) => {
@@ -44,7 +50,6 @@ export default function Machines({ data }: { data: StatusPayload }) {
               <span className="right">
                 <Pill mono>{h.kind}</Pill>
                 <Pill mono>uptime {fmtDuration(h.uptime_s)}</Pill>
-                <Pill mono>{h.cpu_count} vCPU</Pill>
                 {!h.online && <Pill tone="bad">молчит {fmtAgo(h.last_seen)}</Pill>}
               </span>
             </div>
@@ -58,6 +63,9 @@ export default function Machines({ data }: { data: StatusPayload }) {
                     {' '}
                     {h.load.m5.toFixed(2)} / {h.load.m15.toFixed(2)}
                   </small>
+                </div>
+                <div className="dim" style={{ fontSize: 10, marginTop: 4 }}>
+                  {h.cpu_count} vCPU
                 </div>
               </div>
               <div className="card" style={{ padding: 10 }}>

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Icon } from '../components/Icon'
 import { CardHead, KV, Pill, StatusPill } from '../components/primitives'
-import { fmtAgo, fmtDuration } from '../lib/format'
+import { fmtAgo, fmtDuration, plural, stateRu } from '../lib/format'
 import type { ExecRow, StatusPayload } from '../lib/types'
 
 export function runTone(s: string | null): 'ok' | 'bad' | 'warn' | 'dim' {
@@ -33,13 +33,17 @@ export default function HermesView({ data }: { data: StatusPayload }) {
               <Icon name={open ? 'chevronDown' : 'chevronRight'} size={13} style={{ color: 'var(--text-4)' }} />
               <Icon name="bot" size={14} style={{ color: 'var(--text-3)' }} />
               <span className="title">{key}</span>
-              <StatusPill ok={n.gateway.running} label={n.gateway.state || (n.gateway.running ? 'running' : 'down')} />
+              <StatusPill ok={n.gateway.running} label={stateRu(n.gateway.state) || (n.gateway.running ? 'работает' : 'остановлен')} />
               <span className="right">
-                <Pill mono>{n.cron.length} джобов</Pill>
+                <Pill mono>
+                  {n.cron.length} {plural(n.cron.length, 'джоб', 'джоба', 'джобов')}
+                </Pill>
                 <Pill mono tone={fails > 0 ? 'bad' : 'dim'}>
                   сбоев {fails}
                 </Pill>
-                <Pill mono>{n.sessions_24h} сессий / 24ч</Pill>
+                <Pill mono>
+                  {n.sessions_24h} {plural(n.sessions_24h, 'сессия', 'сессии', 'сессий')} / 24ч
+                </Pill>
               </span>
             </div>
 
@@ -49,7 +53,7 @@ export default function HermesView({ data }: { data: StatusPayload }) {
                   <div className="card" style={{ padding: 10 }}>
                     <div className="label">gateway</div>
                     <div className="t-metric" style={{ fontSize: 15 }}>
-                      {n.gateway.state}
+                      {stateRu(n.gateway.state)}
                     </div>
                     <div className="dim" style={{ fontSize: 10, marginTop: 2 }}>
                       pid {n.gateway.pid ?? '—'} · {n.gateway.active_agents} агентов
@@ -62,7 +66,7 @@ export default function HermesView({ data }: { data: StatusPayload }) {
                       {n.gateway.platforms.map((p) => (
                         <Pill key={p.name} tone={p.state === 'connected' ? 'ok' : 'bad'}>
                           <i className="dot" />
-                          {p.name}: {p.state}
+                          {p.name}: {stateRu(p.state)}
                         </Pill>
                       ))}
                     </div>
@@ -77,7 +81,7 @@ export default function HermesView({ data }: { data: StatusPayload }) {
                       <div className="row gap-6" style={{ marginTop: 4 }}>
                         <Pill mono>role {n.heartbeat.role}</Pill>
                         <Pill mono tone={n.heartbeat.gateway === 'up' ? 'ok' : 'bad'}>
-                          gw {n.heartbeat.gateway}
+                          gw {stateRu(n.heartbeat.gateway)}
                         </Pill>
                       </div>
                       <div className="dim" style={{ fontSize: 10, marginTop: 4 }}>
@@ -116,7 +120,7 @@ export default function HermesView({ data }: { data: StatusPayload }) {
                             </td>
                             <td>
                               <Pill tone={runTone(j.last_status)} mono>
-                                {j.last_status ?? 'нет данных'}
+                                {stateRu(j.last_status)}
                               </Pill>
                             </td>
                             <td className="num">{j.runs}</td>
@@ -155,7 +159,7 @@ export default function HermesView({ data }: { data: StatusPayload }) {
                               </td>
                               <td>
                                 <Pill tone={runTone(r.status)} mono>
-                                  {r.status}
+                                  {stateRu(r.status)}
                                 </Pill>
                               </td>
                               <td className="num dim">{fmtDuration(r.duration_s)}</td>

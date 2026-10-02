@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { checkCredentials, fetchAndDecrypt, LOGIN } from './lib/api'
 import { loadProjects, saveProjects } from './lib/store'
+import { plural } from './lib/format'
 import type { Project, StatusPayload } from './lib/types'
 import Login from './views/Login'
 import Overview from './views/Overview'
@@ -168,7 +169,7 @@ function Shell() {
           <div className="brand-text">
             Hermes Ops
             <small>
-              {LOGIN} · {onlineCount}/{hosts.length} узла
+              {LOGIN} · узлов {onlineCount}/{hosts.length}
             </small>
           </div>
         </div>
@@ -198,7 +199,8 @@ function Shell() {
           <div className="dim mono" style={{ fontSize: 10, lineHeight: 1.6 }}>
             схема v{data.schema}
             <br />
-            {hosts.length} машин · {jobs.length} джобов
+            {hosts.length} {plural(hosts.length, 'машина', 'машины', 'машин')} · {jobs.length}{' '}
+            {plural(jobs.length, 'джоб', 'джоба', 'джобов')}
           </div>
         </div>
       </aside>
@@ -206,7 +208,7 @@ function Shell() {
       <main className="main">
         <div className="topbar">
           <Icon name={current.icon} size={15} style={{ color: 'var(--text-3)' }} />
-          <span style={{ fontWeight: 590, fontSize: 13 }}>{current.label}</span>
+          <span style={{ fontWeight: 590, fontSize: 14, letterSpacing: '-0.01em' }}>{current.label}</span>
 
           <span className="spacer" />
 

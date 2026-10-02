@@ -35,3 +35,34 @@ export function pctTone(pct: number): 'ok' | 'warn' | 'bad' {
 export function nowISO(): string {
   return new Date().toISOString()
 }
+
+/** Русские формы: plural(3, 'джоб', 'джоба', 'джобов') → 'джоба'. */
+export function plural(n: number, one: string, few: string, many: string): string {
+  const abs = Math.abs(n) % 100
+  const last = abs % 10
+  if (abs > 10 && abs < 20) return many
+  if (last === 1) return one
+  if (last >= 2 && last <= 4) return few
+  return many
+}
+
+const STATE_RU: Record<string, string> = {
+  connected: 'подключено',
+  disconnected: 'отключено',
+  running: 'работает',
+  down: 'остановлен',
+  stopped: 'остановлен',
+  up: 'работает',
+  ok: 'ок',
+  completed: 'успех',
+  success: 'успех',
+  failed: 'сбой',
+  claimed: 'в очереди',
+  unknown: 'неизвестно',
+}
+
+/** Человеческие подписи состояний вместо служебных слов из БД. */
+export function stateRu(s: string | null | undefined): string {
+  if (!s) return '—'
+  return STATE_RU[s.toLowerCase()] ?? s
+}

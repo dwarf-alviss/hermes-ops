@@ -1,7 +1,7 @@
 import { LineChart } from '../components/Chart'
 import { Icon } from '../components/Icon'
 import { Bar, KV, Metric, Pill, SectionTitle, StatusPill, toneFor } from '../components/primitives'
-import { fmtAgo, fmtDuration, fmtMB } from '../lib/format'
+import { fmtAgo, fmtDuration, fmtMB, plural } from '../lib/format'
 import type { Project, StatusPayload } from '../lib/types'
 
 const STATUS_LABEL: Record<Project['status'], string> = {
@@ -77,7 +77,7 @@ export default function Overview({
           value={failing.length}
           sub={failing.length ? failing.map((f) => f.name).slice(0, 2).join(', ') : 'всё в норме'}
         />
-        <Metric icon="layers" label="Расписаний" value={jobs.length} sub={`${nodes.length} узла Hermes`} />
+        <Metric icon="layers" label="Расписаний" value={jobs.length} sub={`на ${nodes.length} ${plural(nodes.length, 'узле', 'узлах', 'узлах')}`} />
       </div>
 
       {data.notes.length > 0 && (
@@ -85,7 +85,7 @@ export default function Overview({
           <SectionTitle>Требует внимания</SectionTitle>
           <div className="grid split">
             {data.notes.map((n, i) => (
-              <div className="card" key={i} style={{ padding: '10px 12px' }}>
+              <div className={`card alert-card ${/диск|ошиб|сбой|заполнен/i.test(n) ? 'bad' : ''}`} key={i} style={{ padding: '11px 12px' }}>
                 <div className="row gap-8">
                   <Icon name="alert" size={14} style={{ color: 'var(--warn)', flex: 'none' }} />
                   <span style={{ fontSize: 12.5 }}>{n}</span>
@@ -158,7 +158,7 @@ export default function Overview({
               </Pill>
               <span className="spacer" />
               <span className="dim mono" style={{ fontSize: 11 }}>
-                {n.cron.length} джобов · {n.sessions_24h} сессий
+                {n.cron.length} {plural(n.cron.length, 'джоб', 'джоба', 'джобов')} · {n.sessions_24h} {plural(n.sessions_24h, 'сессия', 'сессии', 'сессий')}
               </span>
             </div>
           ))}
@@ -199,7 +199,7 @@ export default function Overview({
       </div>
 
       <div className="dim" style={{ marginTop: 16, fontSize: 11 }}>
-        снимок {fmtAgo(data.generated_at)} · схема v{data.schema} · всего RAM в игре{' '}
+        снимок {fmtAgo(data.generated_at)} · схема v{data.schema} · суммарно RAM{' '}
         {fmtMB(hosts.reduce((n, [, h]) => n + h.mem.total_mb, 0))}
       </div>
     </>
