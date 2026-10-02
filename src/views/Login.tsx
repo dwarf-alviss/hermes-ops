@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Icon } from '../components/Icon'
 import { LOGIN } from '../lib/api'
 
 export default function Login({
@@ -10,6 +11,7 @@ export default function Login({
 }) {
   const [login, setLogin] = useState('')
   const [password, setPassword] = useState('')
+  const [show, setShow] = useState(false)
   const [err, setErr] = useState<string | null>(initialError ?? null)
   const [busy, setBusy] = useState(false)
 
@@ -28,13 +30,21 @@ export default function Login({
 
   return (
     <div className="login-wrap">
-      <form className="login" onSubmit={submit}>
-        <h1>🛠️ Hermes Ops</h1>
-        <p className="sub">Проекты · мониторинг Hermes · ресурсы машин</p>
+      <form className="login-card" onSubmit={submit}>
+        <div className="row gap-8" style={{ marginBottom: 16 }}>
+          <span className="brand-mark">
+            <Icon name="terminal" size={13} />
+          </span>
+          <div className="brand-text">
+            Hermes Ops
+            <small>проекты · мониторинг Hermes · ресурсы машин</small>
+          </div>
+        </div>
 
         <label htmlFor="login">Логин</label>
         <input
           id="login"
+          className="field"
           value={login}
           autoComplete="username"
           autoFocus
@@ -42,25 +52,31 @@ export default function Login({
         />
 
         <label htmlFor="pw">Пароль</label>
-        <input
-          id="pw"
-          type="password"
-          value={password}
-          autoComplete="current-password"
-          onChange={(e) => setPassword(e.target.value)}
-        />
+        <div className="row gap-6">
+          <input
+            id="pw"
+            className="field"
+            type={show ? 'text' : 'password'}
+            value={password}
+            autoComplete="current-password"
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <button type="button" className="btn icon" title="Показать пароль" onClick={() => setShow((s) => !s)}>
+            <Icon name={show ? 'eyeOff' : 'eye'} />
+          </button>
+        </div>
 
         <div style={{ marginTop: 18 }}>
-          <button className="primary" style={{ width: '100%' }} disabled={busy || !login || !password}>
-            {busy ? 'Проверяю…' : 'Войти'}
+          <button className="btn primary block" style={{ height: 32 }} disabled={busy || !login || !password}>
+            {busy ? 'Расшифровываю…' : 'Войти'}
           </button>
         </div>
 
         {err && <div className="err">{err}</div>}
 
         <div className="hint">
-          Данные лежат в публичном репозитории, но зашифрованы AES-256: без пароля их не прочитать.
-          Логин: <span className="mono">{LOGIN}</span>
+          Логин: <span className="mono">{LOGIN}</span>. Данные лежат в публичном репозитории, но зашифрованы
+          AES-256 — без верного пароля не читаются: пароль здесь и есть ключ расшифровки.
         </div>
       </form>
     </div>

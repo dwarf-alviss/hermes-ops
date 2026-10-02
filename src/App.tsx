@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { checkCredentials, fetchAndDecrypt, LOGIN } from './lib/api'
-import { fmtAgo } from './lib/format'
 import { loadProjects, saveProjects } from './lib/store'
 import type { Project, StatusPayload } from './lib/types'
 import Login from './views/Login'
@@ -9,43 +8,47 @@ import Machines from './views/Machines'
 import HermesView from './views/HermesView'
 import Projects from './views/Projects'
 import Settings from './views/Settings'
+import { CommandPalette, type PaletteAction } from './components/CommandPalette'
+import { Icon, type IconName } from './components/Icon'
+import { Pill, Skeleton } from './components/primitives'
+import { ToastProvider, useHotkey, useTicker } from './components/hooks'
 
 type Tab = 'overview' | 'machines' | 'hermes' | 'projects' | 'settings'
 
-const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: 'overview', label: 'Обзор', icon: '◉' },
-  { id: 'machines', label: 'Машины', icon: '🖥' },
-  { id: 'hermes', label: 'Hermes', icon: '🤖' },
-  { id: 'projects', label: 'Проекты', icon: '📁' },
-  { id: 'settings', label: 'Настройки', icon: '⚙' },
+const NAV: { id: Tab; label: string; icon: IconName; group: string; key?: string }[] = [
+  { id: 'overview', label: 'Обзор', icon: 'overview', group: 'Мониторинг' },
+  { id: 'machines', label: 'Машины', icon: 'server', group: 'Мониторинг', key: 'm' },
+  { id: 'hermes', label: 'Hermes', icon: 'bot', group: 'Мониторинг', key: 'h' },
+  { id: 'projects', label: 'Проекты', icon: 'folder', group: 'Работа', key: 'p' },
+  { id: 'settings', label: 'Настройки', icon: 'settings', group: 'Система' },
 ]
 
 const PW_KEY = 'hermes-ops.pw'
+const REFRESH_MS = 30_000
 
-export default function App() {
+function Shell() {
   const [password, setPassword] = useState<string | null>(() => sessionStorage.getItem(PW_KEY))
   const [data, setData] = useState<StatusPayload | null>(null)
   const [tab, setTab] = useState<Tab>('overview')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [paletteOpen, setPaletteOpen] = useState(false)
   const [projects, setProjects] = useState<Project[]>(() => loadProjects())
+  const now = useTicker(1000)
 
-  useEffect(() => {
-    saveProjects(projects)
-  }, [projects])
+  useEffect(() => saveProjects(projects), [projects])
 
-  const refresh = useCallback(async (pw: string) => {
-    setBusy(true)
+  const refresh = useCallback(async (pw: string, silent = false) => {
+    if (!silent) setBusy(true)
     try {
       const { payload } = await fetchAndDecrypt(pw)
       setData(payload)
       setErr(null)
     } finally {
-      setBusy(false)
+      if (!silent) setBusy(false)
     }
   }, [])
 
-  // Первичная загрузка при наличии сохранённого пароля в рамках вкладки.
   useEffect(() => {
     if (!password) return
     refresh(password).catch((e) => {
@@ -56,14 +59,16 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Автообновление раз в 5 минут, пока вкладка активна.
   useEffect(() => {
     if (!password) return
-    const t = setInterval(() => {
-      if (document.visibilityState === 'visible') refresh(password).catch(() => undefined)
-    }, 5 * 60 * 1000)
-    return () => clearInterval(t)
+    const t = window.setInterval(() => {
+      if (document.visibilityState === 'visible') refresh(password, true).catch(() => undefined)
+    }, REFRESH_MS)
+    return () => window.clearInterval(t)
   }, [password, refresh])
+
+  useHotkey('k', () => setPaletteOpen((o) => !o), { meta: true })
+  useHotkey('/', () => setPaletteOpen(true))
 
   async function handleLogin(login: string, pw: string) {
     const payload = await checkCredentials(login, pw)
@@ -79,74 +84,175 @@ export default function App() {
     setData(null)
   }
 
+  const actions: PaletteAction[] = useMemo(() => {
+    const nav: PaletteAction[] = NAV.map((n) => ({
+      id: `nav-${n.id}`,
+      label: `Перейти: ${n.label}`,
+      group: n.group,
+      hint: n.key ? `g ${n.key}` : undefined,
+      icon: n.icon,
+      run: () => setTab(n.id),
+    }))
+    const rest: PaletteAction[] = [
+      {
+        id: 'refresh',
+        label: 'Обновить данные',
+        icon: 'refresh',
+        hint: 'r',
+        run: () => password && refresh(password),
+      },
+      {
+        id: 'copy-link',
+        label: 'Скопировать ссылку на дашборд',
+        icon: 'copy',
+        run: () => navigator.clipboard.writeText(location.href).catch(() => undefined),
+      },
+      {
+        id: 'open-app-repo',
+        label: 'Открыть репозиторий приложения',
+        icon: 'git',
+        run: () => window.open('https://github.com/dwarf-alviss/hermes-ops', '_blank'),
+      },
+      { id: 'logout', label: 'Выйти', icon: 'user', run: logout },
+    ]
+    return [...nav, ...rest]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [password, refresh])
+
   if (password && !data) {
     return (
-      <div className="login-wrap">
-        <div className="login">
-          <h1>🛠️ Hermes Ops</h1>
-          <p className="sub">{busy ? 'Расшифровываю данные…' : 'Загружаю…'}</p>
+      <div className="page" style={{ maxWidth: 1180 }}>
+        <div className="grid metrics">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div className="card" key={i} style={{ padding: 12 }}>
+              <Skeleton h={10} w="40%" />
+              <Skeleton h={22} w="60%" style={{ marginTop: 10 }} />
+            </div>
+          ))}
+        </div>
+        <div className="grid split" style={{ marginTop: 12 }}>
+          {[0, 1].map((i) => (
+            <div className="card" key={i}>
+              <Skeleton h={12} w="30%" />
+              <Skeleton h={90} style={{ marginTop: 12 }} />
+            </div>
+          ))}
+        </div>
+        <div className="dim" style={{ marginTop: 14, fontSize: 12 }}>
+          {busy ? 'Расшифровываю снимок…' : 'Загружаю…'}
         </div>
       </div>
     )
   }
 
   if (!password || !data) {
-    return <Login onLogin={handleLogin} initialError={err} />
+    return (
+      <Login onLogin={handleLogin} initialError={err} />
+    )
   }
 
+  const hosts = Object.entries(data.hosts)
+  const onlineCount = hosts.filter(([, h]) => h.online).length
+  const jobs = Object.values(data.hermes).flatMap((h) => h.cron)
+  const fails = jobs.reduce((n, j) => n + j.fails, 0)
+  const lastSec = Math.max(0, Math.round((now - Date.parse(data.generated_at)) / 1000))
+  const current = NAV.find((n) => n.id === tab)!
+
   return (
-    <div className="app">
-      <aside className="side">
+    <div className="shell">
+      <aside className="sidebar">
         <div className="brand">
-          <span style={{ fontSize: 20 }}>🛠️</span>
-          <span>
+          <span className="brand-mark">
+            <Icon name="terminal" size={13} />
+          </span>
+          <div className="brand-text">
             Hermes Ops
             <small>
-              {LOGIN} · {fmtAgo(data.generated_at)}
+              {LOGIN} · {onlineCount}/{hosts.length} узла
             </small>
-          </span>
+          </div>
         </div>
 
-        <nav className="nav">
-          {TABS.map((t) => (
-            <button key={t.id} className={tab === t.id ? 'on' : ''} onClick={() => setTab(t.id)}>
-              <span>{t.icon}</span>
-              {t.label}
-            </button>
-          ))}
-        </nav>
+        {['Мониторинг', 'Работа', 'Система'].map((group) => (
+          <div className="nav-group" key={group} style={{ marginBottom: 6 }}>
+            <div className="nav-label">{group}</div>
+            {NAV.filter((n) => n.group === group).map((n) => (
+              <button key={n.id} className={`nav-item ${tab === n.id ? 'active' : ''}`} onClick={() => setTab(n.id)}>
+                <Icon name={n.icon} size={15} />
+                <span>{n.label}</span>
+                {n.id === 'projects' && <span className="count">{projects.filter((p) => p.status === 'active').length}</span>}
+                {n.id === 'hermes' && <span className="count">{jobs.length}</span>}
+              </button>
+            ))}
+          </div>
+        ))}
 
-        <div className="foot">
-          <button className="ghost tiny" style={{ width: '100%', marginBottom: 8 }} onClick={() => refresh(password)} disabled={busy}>
-            {busy ? 'обновляю…' : '↻ обновить'}
+        <div className="side-foot">
+          <button className="btn sm block" style={{ marginBottom: 8 }} onClick={() => setPaletteOpen(true)}>
+            <Icon name="search" size={12} />
+            Поиск действий
+            <span className="kbd" style={{ marginLeft: 'auto' }}>
+              ⌘K
+            </span>
           </button>
-          схема v{data.schema}
-          <br />
-          {Object.keys(data.hosts).length} машин · {Object.values(data.hermes).reduce((n, h) => n + h.cron.length, 0)} джобов
+          <div className="dim mono" style={{ fontSize: 10, lineHeight: 1.6 }}>
+            схема v{data.schema}
+            <br />
+            {hosts.length} машин · {jobs.length} джобов
+          </div>
         </div>
       </aside>
 
       <main className="main">
-        <div className="top">
-          <h2>{TABS.find((t) => t.id === tab)?.label}</h2>
-          <span className="meta">
-            данные: {data.generated_at} ({fmtAgo(data.generated_at)})
+        <div className="topbar">
+          <Icon name={current.icon} size={15} style={{ color: 'var(--text-3)' }} />
+          <span style={{ fontWeight: 590, fontSize: 13 }}>{current.label}</span>
+
+          <span className="spacer" />
+
+          <span className="live hide-mobile">
+            <span className={`spin`} style={{ display: busy ? 'inline-flex' : 'none' }}>
+              <Icon name="refresh" size={11} />
+            </span>
+            <span className="dot" style={{ color: onlineCount === hosts.length ? 'var(--ok)' : 'var(--bad)' }} />
+            {lastSec < 60 ? `${lastSec} с назад` : `${Math.round(lastSec / 60)} мин назад`}
           </span>
-          <div className="right">
-            <button onClick={() => refresh(password)} disabled={busy}>
-              {busy ? 'Обновляю…' : 'Обновить'}
-            </button>
-          </div>
+
+          {fails > 0 && (
+            <Pill tone="bad" mono>
+              {fails} сбоев
+            </Pill>
+          )}
+
+          <button className="btn sm hide-mobile" onClick={() => setPaletteOpen(true)} title="⌘K">
+            <Icon name="search" size={13} />
+          </button>
+          <button className="btn sm" onClick={() => refresh(password)} disabled={busy}>
+            <Icon name="refresh" size={13} className={busy ? 'spin' : ''} />
+            <span className="hide-mobile">{busy ? 'обновляю' : 'обновить'}</span>
+          </button>
         </div>
 
-        {tab === 'overview' && <Overview data={data} projects={projects} />}
-        {tab === 'machines' && <Machines data={data} />}
-        {tab === 'hermes' && <HermesView data={data} />}
-        {tab === 'projects' && <Projects projects={projects} setProjects={setProjects} />}
-        {tab === 'settings' && (
-          <Settings data={data} onLogout={logout} onRefresh={() => refresh(password)} busy={busy} />
-        )}
+        <div className="page">
+          {tab === 'overview' && <Overview data={data} projects={projects} onOpen={setTab} />}
+          {tab === 'machines' && <Machines data={data} />}
+          {tab === 'hermes' && <HermesView data={data} />}
+          {tab === 'projects' && <Projects projects={projects} setProjects={setProjects} />}
+          {tab === 'settings' && (
+            <Settings data={data} onLogout={logout} onRefresh={() => refresh(password)} busy={busy} />
+          )}
+        </div>
       </main>
+
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} actions={actions} />
     </div>
+  )
+}
+
+export default function App() {
+  return (
+    <ToastProvider>
+      <Shell />
+    </ToastProvider>
   )
 }
