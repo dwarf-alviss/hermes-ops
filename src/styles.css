@@ -393,6 +393,7 @@ tbody tr:last-child td { border-bottom: none; }
 .field.tone-dim { color: var(--text-3); }
 .scroll-x { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .scroll-x::-webkit-scrollbar { display: none; }
+.nowrap { flex-wrap: nowrap; }
 .toast { align-items: center; }
 .toast .btn { flex: none; }
 

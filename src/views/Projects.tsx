@@ -221,16 +221,19 @@ export default function Projects({
                   onChange={(e) => update(p.id, { deadline: e.target.value })}
                 />
 
-                <button
-                  className="btn sm icon ghost"
-                  title="Детали"
-                  onClick={() => setOpenNotes(notesOpen ? null : p.id)}
-                >
-                  <Icon name={notesOpen ? 'chevronDown' : 'edit'} size={13} />
-                </button>
-                <button className="btn sm icon ghost danger" title="Удалить" onClick={() => remove(p)}>
-                  <Icon name="trash" size={13} />
-                </button>
+                {/* действия одной группой: при переносе на узком экране они не расходятся по строкам */}
+                <span className="row gap-4 nowrap">
+                  <button
+                    className="btn sm icon ghost"
+                    title="Детали"
+                    onClick={() => setOpenNotes(notesOpen ? null : p.id)}
+                  >
+                    <Icon name={notesOpen ? 'chevronDown' : 'edit'} size={13} />
+                  </button>
+                  <button className="btn sm icon ghost danger" title="Удалить" onClick={() => remove(p)}>
+                    <Icon name="trash" size={13} />
+                  </button>
+                </span>
               </div>
 
               {notesOpen && (
