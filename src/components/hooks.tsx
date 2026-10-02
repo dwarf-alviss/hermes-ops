@@ -1,9 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 
 type ToastKind = 'info' | 'ok' | 'err'
-type Toast = { id: number; text: string; kind: ToastKind }
+export type ToastAction = { label: string; fn: () => void }
+type Toast = { id: number; text: string; kind: ToastKind; action?: ToastAction }
 
-const ToastCtx = createContext<(text: string, kind?: ToastKind) => void>(() => {})
+const ToastCtx = createContext<(text: string, kind?: ToastKind, action?: ToastAction) => void>(() => {})
 
 export function useToast() {
   return useContext(ToastCtx)
@@ -13,11 +14,17 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [list, setList] = useState<Toast[]>([])
   const seq = useRef(0)
 
-  const push = useCallback((text: string, kind: ToastKind = 'info') => {
-    const id = ++seq.current
-    setList((prev) => [...prev, { id, text, kind }])
-    window.setTimeout(() => setList((prev) => prev.filter((t) => t.id !== id)), kind === 'err' ? 6000 : 3000)
-  }, [])
+  const dismiss = useCallback((id: number) => setList((prev) => prev.filter((t) => t.id !== id)), [])
+
+  const push = useCallback(
+    (text: string, kind: ToastKind = 'info', action?: ToastAction) => {
+      const id = ++seq.current
+      setList((prev) => [...prev, { id, text, kind, action }])
+      // тост с действием («вернуть») живёт дольше — успеть передумать
+      window.setTimeout(() => dismiss(id), action ? 8000 : kind === 'err' ? 6000 : 3000)
+    },
+    [dismiss],
+  )
 
   return (
     <ToastCtx.Provider value={push}>
@@ -26,7 +33,18 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         {list.map((t) => (
           <div key={t.id} className={`toast ${t.kind === 'err' ? 'err' : t.kind === 'ok' ? 'ok' : ''}`}>
             <span className="dot" style={{ marginTop: 5, color: t.kind === 'err' ? 'var(--bad)' : t.kind === 'ok' ? 'var(--ok)' : 'var(--accent)' }} />
-            <span>{t.text}</span>
+            <span style={{ flex: 1 }}>{t.text}</span>
+            {t.action && (
+              <button
+                className="btn sm ghost"
+                onClick={() => {
+                  t.action!.fn()
+                  dismiss(t.id)
+                }}
+              >
+                {t.action.label}
+              </button>
+            )}
           </div>
         ))}
       </div>

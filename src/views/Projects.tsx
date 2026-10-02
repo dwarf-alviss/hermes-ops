@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import { Icon } from '../components/Icon'
-import { Pill } from '../components/primitives'
 import { useToast } from '../components/hooks'
 import { download, newProject } from '../lib/store'
 import type { Project } from '../lib/types'
@@ -51,10 +50,17 @@ export default function Projects({
     setProjects(projects.map((p) => (p.id === id ? { ...p, ...patch, updated_at: new Date().toISOString() } : p)))
   }
 
+  /** Удаление без модалки: тост с «вернуть» вместо confirm — на телефоне быстрее и не мешает. */
   function remove(p: Project) {
-    if (!confirm(`Удалить «${p.name}»?`)) return
-    setProjects(projects.filter((x) => x.id !== p.id))
-    toast(`«${p.name}» удалён`, 'ok')
+    const rest = projects.filter((x) => x.id !== p.id)
+    setProjects(rest)
+    toast(`«${p.name}» удалён`, 'ok', {
+      label: 'вернуть',
+      fn: () => {
+        setProjects(projects)
+        toast('Возвращено', 'ok')
+      },
+    })
   }
 
   function add() {
@@ -90,12 +96,12 @@ export default function Projects({
   return (
     <>
       <div className="row wrap" style={{ marginBottom: 12, gap: 8 }}>
-        <div className="field-wrap" style={{ width: 240 }}>
+        <div className="field-wrap grow-mobile" style={{ width: 240 }}>
           <Icon name="search" size={13} />
           <input className="field" placeholder="Поиск по проектам" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
 
-        <div className="row gap-4">
+        <div className="row gap-4 scroll-x">
           {(['all', 'active', 'paused', 'idea', 'done'] as const).map((s) => (
             <button
               key={s}
@@ -108,21 +114,22 @@ export default function Projects({
           ))}
         </div>
 
-        <span className="spacer" />
+        <span className="spacer hide-mobile" />
 
         <button className="btn sm" onClick={sortByPriority} title="Разложить по приоритету">
           <Icon name="layers" size={13} />
-          сортировать
+          <span className="hide-mobile">сортировать</span>
         </button>
         <button
           className="btn sm"
+          title="Скачать projects.json"
           onClick={() => {
             download('projects.json', JSON.stringify(projects, null, 2))
             toast('projects.json выгружен', 'ok')
           }}
         >
           <Icon name="download" size={13} />
-          экспорт
+          <span className="hide-mobile">экспорт</span>
         </button>
         <button className="btn sm primary" onClick={add}>
           <Icon name="plus" size={13} />
@@ -146,9 +153,9 @@ export default function Projects({
                 setDragId(null)
               }}
             >
-              <div className="row gap-8">
+              <div className="row gap-8 wrap">
                 <span
-                  className="drag-handle"
+                  className="drag-handle hide-mobile"
                   draggable
                   onDragStart={() => setDragId(p.id)}
                   onDragEnd={() => setDragId(null)}
@@ -157,24 +164,30 @@ export default function Projects({
                   <Icon name="grip" size={14} />
                 </span>
 
-                <span className="dot" style={{ color: p.priority === 'high' ? 'var(--warn)' : 'var(--text-4)' }} />
+                <span
+                  className="dot"
+                  style={{ color: p.priority === 'high' ? 'var(--warn)' : 'var(--text-4)' }}
+                  title={`приоритет: ${PRIORITY_LABEL[p.priority]}`}
+                />
 
                 <input
                   className="inline-edit"
-                  style={{ fontWeight: 590, maxWidth: 260 }}
+                  style={{ fontWeight: 590, flex: '1 1 150px', minWidth: 0, maxWidth: 260 }}
                   value={p.name}
+                  title={p.name}
                   onChange={(e) => update(p.id, { name: e.target.value })}
                 />
 
-                <span className="dim truncate hide-mobile" style={{ fontSize: 11, maxWidth: 220 }}>
+                <span className="dim truncate hide-mobile" style={{ fontSize: 11, maxWidth: 200 }}>
                   {p.stack}
                 </span>
 
-                <span className="spacer" />
+                <span className="spacer hide-mobile" />
 
                 <select
-                  className="field"
-                  style={{ width: 110, height: 24 }}
+                  className={`field tone-${TONE[p.status]}`}
+                  style={{ width: 108, height: 28 }}
+                  title="Статус"
                   value={p.status}
                   onChange={(e) => update(p.id, { status: e.target.value as Project['status'] })}
                 >
@@ -187,7 +200,8 @@ export default function Projects({
 
                 <select
                   className="field hide-mobile"
-                  style={{ width: 100, height: 24 }}
+                  style={{ width: 100, height: 28 }}
+                  title="Приоритет"
                   value={p.priority}
                   onChange={(e) => update(p.id, { priority: e.target.value as Project['priority'] })}
                 >
@@ -201,12 +215,11 @@ export default function Projects({
                 <input
                   className="field hide-mobile"
                   type="date"
-                  style={{ width: 132, height: 24 }}
+                  style={{ width: 132, height: 28 }}
+                  title="Дедлайн"
                   value={p.deadline}
                   onChange={(e) => update(p.id, { deadline: e.target.value })}
                 />
-
-                <Pill tone={TONE[p.status]}>{STATUS[p.status]}</Pill>
 
                 <button
                   className="btn sm icon ghost"
@@ -274,7 +287,7 @@ export default function Projects({
                       value={p.notes}
                       onChange={(e) => update(p.id, { notes: e.target.value })}
                     />
-                    <div className="row gap-8">
+                    <div className="row gap-8 wrap">
                       {p.repo && (
                         <a
                           className="btn sm ghost"
